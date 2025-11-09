@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Casino Tracker</title>
+    <style>
+        /* Basic CSS for a clean look */
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f9; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; }
+        .data-display { text-align: center; margin: 20px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        /* Use unformatted net_profit to check sign */
+        .profit { font-size: 2.5em; font-weight: bold; color: {% if net_profit_f.startswith('-') %}red{% else %}green{% endif %}; } 
+        .controls { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; }
+        .controls form { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .controls button { padding: 15px 30px; font-size: 1.1em; cursor: pointer; border: none; border-radius: 5px; color: white; width: 200px; }
+        #lose-btn { background-color: #e74c3c; } /* Red */
+        #win-btn { background-color: #2ecc71; }  /* Green */
+        .clipboard-buttons button { margin: 5px; padding: 10px 15px; background-color: #3498db; }
+        .leaderboard, .messages { margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px; }
+        #copy-status { margin-top: 10px; font-weight: bold; }
+        #winner-input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 184px; text-align: center;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Spinning Wheel Game Tracker</h1>
+        
+        <div class="data-display">
+            <h2>NET PROFIT: $<span class="profit">{{ net_profit_f }}</span></h2> 
+            <p>LOSS STREAK: <strong>{{ loss_streak }}</strong> SPINS</p>
+        </div>
+
+        <div class="controls">
+            <form method="POST" action="{{ url_for('player_loses_route') }}">
+                <button type="submit" id="lose-btn">Player LOSES (+${{ bet_amount_f }}K)</button> 
+            </form>
+            
+            <form method="POST" action="{{ url_for('player_wins_route') }}">
+                <input type="text" name="winner_name" id="winner-input" placeholder="Winner's Name" required>
+                <button type="submit" id="win-btn">Player WINS (-${{ net_casino_cost_f }}K)</button>
+            </form>
+        </div>
+
+        <div class="messages">
+            <h2>Quick Invite Copier</h2>
+            <div class="clipboard-buttons">
+                {% for key, message in messages.items() %}
+                    {% set display_name = key %}
+                    {% set message_content = message %}
+
+                    {% if key == 'Loss Streak Alert' %}
+                        {% set display_name = 'Loss Streak Message' %}
+                        {% set message_content = loss_streak ~ ' losses in a row! Can\'t be much longer!' %}
+                    {% endif %}
+
+                    <button onclick="copyToClipboard('{{ message_content }}', '{{ display_name }}')">
+                        Copy: {{ display_name }}
+                    </button>
+                {% endfor %}
+            </div>
+            <p id="copy-status">Ready to copy.</p>
+        </div>
+
+        <div class="leaderboard">
+            <h2>Top Winners Leaderboard</h2>
+            <ul>
+                {% for player, winnings_f in leaderboard_f %} 
+                    <li>{{ loop.index }}. {{ player }}: ${{ winnings_f }}</li>
+                {% else %}
+                    <li>No winners yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(text, key) {
+            // Un-escape quotes that Flask/Jinja might insert
+            text = text.replace(/&#39;/g, "'"); 
+
+            const statusElement = document.getElementById('copy-status');
+            
+            // 1. Create a temporary textarea element
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed'; // Prevents scrolling to bottom
+            document.body.appendChild(textarea);
+            
+            // 2. Select the text
+            textarea.select();
+            
+            try {
+                // 3. Execute the copy command
+                document.execCommand('copy');
+                
+                // Success message
+                statusElement.textContent = `'${key}' Copied! (Classic)`;
+                statusElement.style.color = 'green';
+            } catch (err) {
+                console.error('Fallback copy method failed: ', err);
+                // Failure message
+                statusElement.textContent = 'ERROR: Copy failed.';
+                statusElement.style.color = 'red';
+            } finally {
+                // 4. Remove the temporary textarea
+                document.body.removeChild(textarea);
+
+                // Clear the status after 1.5 seconds
+                setTimeout(() => {
+                    statusElement.textContent = 'Ready to copy.';
+                    statusElement.style.color = 'gray';
+                }, 1500);
+            }
+        }
+    </script>
+</body>
+</html>
