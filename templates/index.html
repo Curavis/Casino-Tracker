@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web Casino Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         /* DARK THEME & CENTERING */
         body { 
@@ -116,10 +117,13 @@
             padding: 8px;
             border-radius: 4px;
         }
-        #copy-status { 
-            margin-top: 10px; 
-            font-weight: bold; 
-            color: #aaa;
+        /* CHART SPECIFIC STYLES */
+        .chart-container {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+            max-width: 100%; /* Ensure it fits in container */
+            height: 300px; /* Give it a fixed height */
         }
     </style>
 </head>
@@ -173,25 +177,26 @@
                 {% endfor %}
             </ul>
         </div>
+        
+        <div class="chart-container">
+            <h2>Profit History</h2>
+            <canvas id="profitChart"></canvas>
+        </div>
+        
     </div>
 
     <script>
         function copyToClipboard(text, key) {
-            // FIX: Remove HTML escape characters like &quot; and &#39;
             text = text.replace(/&quot;/g, '"').replace(/&#39;/g, "'"); 
-
             const statusElement = document.getElementById('copy-status');
-            
             const textarea = document.createElement('textarea');
             textarea.value = text;
             textarea.style.position = 'fixed'; 
             document.body.appendChild(textarea);
-            
             textarea.select();
             
             try {
                 document.execCommand('copy');
-                
                 statusElement.textContent = `'${key}' Copied!`;
                 statusElement.style.color = 'green';
             } catch (err) {
@@ -200,13 +205,82 @@
                 statusElement.style.color = 'red';
             } finally {
                 document.body.removeChild(textarea);
-
                 setTimeout(() => {
                     statusElement.textContent = 'Ready to copy.';
                     statusElement.style.color = 'gray';
                 }, 1500);
             }
         }
+        
+        // --- CHART.JS LOGIC ---
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get the profit history data passed from Flask
+            const profitHistory = JSON.parse('{{ profit_history | tojson | safe }}');
+            
+            // Create labels (Spin 0, Spin 1, Spin 2, ...)
+            const labels = profitHistory.map((_, index) => 'Spin ' + index);
+
+            // Chart data structure
+            const data = {
+                labels: labels,
+                datasets: [{
+                    label: 'Net Profit',
+                    data: profitHistory,
+                    borderColor: '#3498db', // Blue line color
+                    backgroundColor: 'rgba(52, 152, 219, 0.2)', // Light blue area fill
+                    fill: true,
+                    tension: 0.1
+                }]
+            };
+
+            // Chart configuration
+            const config = {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Profit/Loss ($)',
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: '#333' // Darker grid lines
+                            },
+                            ticks: {
+                                color: '#e0e0e0',
+                                // Format ticks with commas and currency sign
+                                callback: function(value, index, ticks) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: '#333'
+                            },
+                            ticks: {
+                                color: '#e0e0e0'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#ffffff' // White legend text
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Initialize and render the chart
+            const ctx = document.getElementById('profitChart').getContext('2d');
+            new Chart(ctx, config);
+        });
     </script>
 </body>
 </html>
