@@ -4,7 +4,10 @@ import os
 
 # --- Configuration & Global Data ---
 app = Flask(__name__)
-DATA_FILE = "casino_data.json"
+
+# FINAL DATA FIX: Use the persistent disk path on Render
+# You MUST configure a disk named '/var/data' on Render for this to work.
+DATA_FILE = "/var/data/casino_data.json" 
 
 # --- Game Parameters ---
 BET_AMOUNT = 25000
@@ -15,7 +18,7 @@ NET_CASINO_COST = TOTAL_PAYOUT - BET_AMOUNT
 net_profit = 0
 loss_streak = 0
 leaderboard_data = {}
-profit_history = [] # NEW: List to track profit after each action
+profit_history = [] 
 
 SAVED_MESSAGES = {
     "Hot Wheel": "The wheel is hot! It's got to be ready any spin now!", 
@@ -36,7 +39,7 @@ def load_data():
                 net_profit = data.get("net_profit", 0)
                 loss_streak = data.get("loss_streak", 0)
                 leaderboard_data = data.get("leaderboard_data", {})
-                profit_history = data.get("profit_history", [0]) # NEW: Load history, default to [0]
+                profit_history = data.get("profit_history", [0]) 
         except json.JSONDecodeError:
             print("Error reading data file. Starting fresh.")
 
@@ -46,8 +49,10 @@ def save_data():
         "net_profit": net_profit,
         "loss_streak": loss_streak,
         "leaderboard_data": leaderboard_data,
-        "profit_history": profit_history # NEW: Save history
+        "profit_history": profit_history
     }
+    # Ensure the directory exists before saving (for the first run)
+    os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
@@ -85,7 +90,7 @@ def index():
         
         'loss_streak': loss_streak,
         'messages': SAVED_MESSAGES,
-        'profit_history': profit_history # NEW: Pass history to the template
+        'profit_history': profit_history
     }
     
     return render_template('index.html', **context)
@@ -101,7 +106,7 @@ def player_loses_route():
     net_profit += BET_AMOUNT
     loss_streak += 1
     
-    profit_history.append(net_profit) # NEW: Track profit after loss
+    profit_history.append(net_profit)
     
     save_data()
     
@@ -120,7 +125,7 @@ def player_wins_route():
     net_profit -= NET_CASINO_COST
     loss_streak = 0
     
-    profit_history.append(net_profit) # NEW: Track profit after win
+    profit_history.append(net_profit)
     
     if winner_name and winner_name.strip():
         update_leaderboard(winner_name.strip())
@@ -130,5 +135,10 @@ def player_wins_route():
     return redirect(url_for('index'))
 
 
+# This block is not used by Gunicorn but is kept for local testing
 if __name__ == '__main__':
+    # Ensure the /var/data directory exists for local testing if needed
+    if not os.path.exists(os.path.dirname(DATA_FILE)):
+        os.makedirs(os.path.dirname(DATA_FILE))
+    
     app.run(debug=True)
