@@ -14,7 +14,9 @@ NET_CASINO_COST = TOTAL_PAYOUT - BET_AMOUNT
 # Global variables will be updated by load_data()
 net_profit = 0
 loss_streak = 0
-leaderboard_data = {} 
+leaderboard_data = {}
+profit_history = [] # NEW: List to track profit after each action
+
 SAVED_MESSAGES = {
     "Hot Wheel": "The wheel is hot! It's got to be ready any spin now!", 
     "Loss Streak Alert": "This is a placeholder.",
@@ -25,7 +27,7 @@ SAVED_MESSAGES = {
 # --- Data Persistence Functions ---
 def load_data():
     """Loads profit data from the JSON file if it exists."""
-    global net_profit, loss_streak, leaderboard_data
+    global net_profit, loss_streak, leaderboard_data, profit_history
     
     if os.path.exists(DATA_FILE):
         try:
@@ -34,6 +36,7 @@ def load_data():
                 net_profit = data.get("net_profit", 0)
                 loss_streak = data.get("loss_streak", 0)
                 leaderboard_data = data.get("leaderboard_data", {})
+                profit_history = data.get("profit_history", [0]) # NEW: Load history, default to [0]
         except json.JSONDecodeError:
             print("Error reading data file. Starting fresh.")
 
@@ -42,7 +45,8 @@ def save_data():
     data = {
         "net_profit": net_profit,
         "loss_streak": loss_streak,
-        "leaderboard_data": leaderboard_data
+        "leaderboard_data": leaderboard_data,
+        "profit_history": profit_history # NEW: Save history
     }
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
@@ -55,7 +59,6 @@ def update_leaderboard(player_name):
     current_winnings += NET_CASINO_COST
     leaderboard_data[player_name] = current_winnings
 
-# --- NEW FORMATTING FUNCTION ---
 def format_currency(number):
     """Formats a number as a string with commas."""
     return "{:,.0f}".format(number)
@@ -75,15 +78,14 @@ def index():
     
     # Data passed to the HTML template
     context = {
-        # FORMATTED VARIABLES
-        'net_profit_f': format_currency(net_profit), # NEW FORMATTED VARIABLE
-        'bet_amount_f': format_currency(BET_AMOUNT),   # NEW FORMATTED VARIABLE
-        'net_casino_cost_f': format_currency(NET_CASINO_COST), # NEW FORMATTED VARIABLE
-        'leaderboard_f': formatted_leaderboard, # NEW FORMATTED LEADERBOARD
+        'net_profit_f': format_currency(net_profit),
+        'bet_amount_f': format_currency(BET_AMOUNT),
+        'net_casino_cost_f': format_currency(NET_CASINO_COST),
+        'leaderboard_f': formatted_leaderboard,
         
-        # UNFORMATTED VARIABLES (Still needed)
         'loss_streak': loss_streak,
         'messages': SAVED_MESSAGES,
+        'profit_history': profit_history # NEW: Pass history to the template
     }
     
     return render_template('index.html', **context)
@@ -92,12 +94,14 @@ def index():
 @app.route('/lose', methods=['POST'])
 def player_loses_route():
     """Handles the Player LOSES button click."""
-    global net_profit, loss_streak
+    global net_profit, loss_streak, profit_history
     
     load_data()
     
     net_profit += BET_AMOUNT
-    loss_streak += 1 
+    loss_streak += 1
+    
+    profit_history.append(net_profit) # NEW: Track profit after loss
     
     save_data()
     
@@ -107,7 +111,7 @@ def player_loses_route():
 @app.route('/win', methods=['POST'])
 def player_wins_route():
     """Handles the Player WINS button click and winner input."""
-    global net_profit, loss_streak
+    global net_profit, loss_streak, profit_history
     
     load_data()
     
@@ -115,6 +119,8 @@ def player_wins_route():
     
     net_profit -= NET_CASINO_COST
     loss_streak = 0
+    
+    profit_history.append(net_profit) # NEW: Track profit after win
     
     if winner_name and winner_name.strip():
         update_leaderboard(winner_name.strip())
