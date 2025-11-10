@@ -55,7 +55,7 @@
                         {% set message_content = loss_streak ~ ' losses in a row! Can\'t be much longer!' %}
                     {% endif %}
 
-                    <button onclick="copyToClipboard('{{ message_content }}', '{{ display_name }}')">
+                    <button onclick="copyToClipboard('{{ message_content | e }}', '{{ display_name }}')">
                         Copy: {{ display_name }}
                     </button>
                 {% endfor %}
@@ -77,29 +77,29 @@
 
     <script>
         function copyToClipboard(text, key) {
-            // Un-escape quotes that Flask/Jinja might insert
-            text = text.replace(/&#39;/g, "'"); 
+            // FIX: Remove HTML escape characters like &quot; and &#39;
+            text = text.replace(/&quot;/g, '"').replace(/&#39;/g, "'"); 
 
             const statusElement = document.getElementById('copy-status');
             
             // 1. Create a temporary textarea element
             const textarea = document.createElement('textarea');
             textarea.value = text;
-            textarea.style.position = 'fixed'; // Prevents scrolling to bottom
+            textarea.style.position = 'fixed'; 
             document.body.appendChild(textarea);
             
             // 2. Select the text
             textarea.select();
             
             try {
-                // 3. Execute the copy command
+                // 3. Execute the copy command (Classic method)
                 document.execCommand('copy');
                 
                 // Success message
-                statusElement.textContent = `'${key}' Copied! (Classic)`;
+                statusElement.textContent = `'${key}' Copied!`;
                 statusElement.style.color = 'green';
             } catch (err) {
-                console.error('Fallback copy method failed: ', err);
+                console.error('Copy method failed: ', err);
                 // Failure message
                 statusElement.textContent = 'ERROR: Copy failed.';
                 statusElement.style.color = 'red';
