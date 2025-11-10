@@ -12,7 +12,8 @@ def initialize_data_file():
         default_data = {
             "net_profit": 0,
             "loss_streak": 0,
-            "leaderboard_data": {}
+            "leaderboard_data": {},
+            "profit_history": [0] # Initialize history list for the very first run
         }
         with open(DATA_FILE, 'w') as f:
             json.dump(default_data, f, indent=4)
