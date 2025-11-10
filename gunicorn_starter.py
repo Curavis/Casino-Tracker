@@ -2,12 +2,15 @@ from app import app
 import os
 import json
 
-# Define the path to your data file
-DATA_FILE = "casino_data.json"
+# FINAL DATA FIX: Use the persistent disk path on Render
+DATA_FILE = "/var/data/casino_data.json"
 
 # Function to ensure the data file exists on startup
 def initialize_data_file():
     """Checks for the data file and creates it with default values if it doesn't exist."""
+    # Ensure the persistent directory exists
+    os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
+    
     if not os.path.exists(DATA_FILE):
         default_data = {
             "net_profit": 0,
