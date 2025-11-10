@@ -111,7 +111,7 @@
         /* LEADERBOARD SCROLL FIX */
         .leaderboard-scroll {
             max-height: 200px; /* Adjust this height to control the size of the box */
-            overflow-y: scroll; /* Makes the content scroll vertically */
+            overflow-y: scroll; /* Forces the vertical scrollbar */
             overflow-x: hidden; /* Prevents unwanted horizontal scrollbar */
             padding-right: 10px; /* Adds space for the scrollbar */
             margin: 10px auto 0;
@@ -123,14 +123,16 @@
         .leaderboard-scroll ul {
             list-style: none;
             padding-left: 10px; /* Adjust list padding inside the scrollbox */
-            margin: 0; /* Ensures list starts at the top of the scroll box */
+            margin: 0; 
         }
 
         .leaderboard-scroll li {
-            background-color: #2c2c2c; /* Ensures list items blend with the scrollbox */
+            background-color: #2c2c2c; 
             margin: 2px 0;
             padding: 6px;
             border-radius: 4px;
+            /* CRUCIAL FIX: Ensure li does not exceed parent width, preventing scroll issues */
+            width: 95%; 
         }
         
         #copy-status { 
