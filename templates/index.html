@@ -112,6 +112,7 @@
         .leaderboard-scroll {
             max-height: 200px; /* Adjust this height to control the size of the box */
             overflow-y: scroll; /* Makes the content scroll vertically */
+            overflow-x: hidden; /* Prevents unwanted horizontal scrollbar */
             padding-right: 10px; /* Adds space for the scrollbar */
             margin: 10px auto 0;
             text-align: left; /* Aligns the list items cleanly */
@@ -122,6 +123,7 @@
         .leaderboard-scroll ul {
             list-style: none;
             padding-left: 10px; /* Adjust list padding inside the scrollbox */
+            margin: 0; /* Ensures list starts at the top of the scroll box */
         }
 
         .leaderboard-scroll li {
