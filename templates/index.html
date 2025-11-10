@@ -107,16 +107,36 @@
             border-top: 1px solid #333; 
             padding-top: 20px; 
         }
-        .leaderboard ul {
-            list-style: none;
-            padding: 0;
-        }
-        .leaderboard li {
-            background-color: #2c2c2c;
-            margin: 5px 0;
-            padding: 8px;
+        
+        /* LEADERBOARD SCROLL FIX */
+        .leaderboard-scroll {
+            max-height: 200px; /* Adjust this height to control the size of the box */
+            overflow-y: scroll; /* Makes the content scroll vertically */
+            padding-right: 10px; /* Adds space for the scrollbar */
+            margin: 10px auto 0;
+            text-align: left; /* Aligns the list items cleanly */
+            background-color: #2c2c2c; /* Matches the li background */
             border-radius: 4px;
         }
+        
+        .leaderboard-scroll ul {
+            list-style: none;
+            padding-left: 10px; /* Adjust list padding inside the scrollbox */
+        }
+
+        .leaderboard-scroll li {
+            background-color: #2c2c2c; /* Ensures list items blend with the scrollbox */
+            margin: 2px 0;
+            padding: 6px;
+            border-radius: 4px;
+        }
+        
+        #copy-status { 
+            margin-top: 10px; 
+            font-weight: bold; 
+            color: #aaa;
+        }
+
         /* CHART SPECIFIC STYLES */
         .chart-container {
             margin-top: 40px;
@@ -168,14 +188,16 @@
         </div>
 
         <div class="leaderboard">
-            <h2>Top Winners Leaderboard</h2>
-            <ul>
-                {% for player, winnings_f in leaderboard_f %} 
-                    <li>{{ loop.index }}. {{ player }}: ${{ winnings_f }}</li>
-                {% else %}
-                    <li>No winners yet.</li>
-                {% endfor %}
-            </ul>
+            <h2>All-Time Winners Leaderboard</h2>
+            <div class="leaderboard-scroll">
+                <ul>
+                    {% for player, winnings_f in leaderboard_f %} 
+                        <li>{{ loop.index }}. {{ player }}: ${{ winnings_f }}</li>
+                    {% else %}
+                        <li>No winners yet.</li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
         
         <div class="chart-container">
@@ -187,16 +209,21 @@
 
     <script>
         function copyToClipboard(text, key) {
+            // FIX: Remove HTML escape characters like &quot; and &#39;
             text = text.replace(/&quot;/g, '"').replace(/&#39;/g, "'"); 
+
             const statusElement = document.getElementById('copy-status');
+            
             const textarea = document.createElement('textarea');
             textarea.value = text;
             textarea.style.position = 'fixed'; 
             document.body.appendChild(textarea);
+            
             textarea.select();
             
             try {
                 document.execCommand('copy');
+                
                 statusElement.textContent = `'${key}' Copied!`;
                 statusElement.style.color = 'green';
             } catch (err) {
@@ -205,6 +232,7 @@
                 statusElement.style.color = 'red';
             } finally {
                 document.body.removeChild(textarea);
+
                 setTimeout(() => {
                     statusElement.textContent = 'Ready to copy.';
                     statusElement.style.color = 'gray';
