@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web Casino Tracker</title>
+    <!-- FAVICON: Bread Emoji 🍞 -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍞</text></svg>">
     
+    <!-- Include Chart.js library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         /* BASE STYLES */
@@ -183,16 +185,21 @@
         <h1>Casino Game Tracker</h1>
         
         <div class="game-tabs">
-            <button class="tab-button active" onclick="showGame('wheel')">Spinning Wheel (9x)</button>
-            <button class="tab-button" onclick="showGame('odds')">Odds or Evens (1.8x)</button>
+            <button class="tab-button" id="wheel-tab" onclick="showGame('wheel')">Spinning Wheel (9x)</button>
+            <button class="tab-button" id="odds-tab" onclick="showGame('odds')">Odds or Evens (1.8x)</button>
         </div>
 
+        <!-- ---------------------------------------------------- -->
+        <!-- 1. SPINNING WHEEL CONTENT (Default) -->
+        <!-- ---------------------------------------------------- -->
         <div id="wheel-game" class="game-content">
             
+            <!-- Data Display -->
             <div class="data-display">
                 <h2>NET PROFIT: $<span class="profit" id="sw-profit">{{ net_profit_f }}</span></h2> 
                 <p>TOTAL SPINS: <strong>{{ sw_total_spins }}</strong> &bull; LOSS STREAK: <strong>{{ loss_streak }}</strong> SPINS</p>
 
+                <!-- WIN/LOSS BAR -->
                 <p style="margin-top: 20px;">WIN/LOSS RATIO: <strong>{{ sw_win_loss_display }}</strong></p>
                 <div class="ratio-bar-container">
                     {% if sw_total_spins > 0 %}
@@ -210,6 +217,7 @@
                 </div>
             </div>
 
+            <!-- Bet Selector Dropdown -->
             <div class="bet-selector">
                 <label for="bet-amount">Current Bet Amount:</label>
                 <select id="bet-amount" onchange="updateButtonLabels('wheel')">
@@ -221,12 +229,15 @@
                 </select>
             </div>
 
+            <!-- Control Buttons -->
             <div class="controls">
+                <!-- Player Loses Form -->
                 <form method="POST" action="{{ url_for('player_loses_route') }}" id="lose-form">
                     <button type="submit" id="lose-btn"></button>
                     <input type="hidden" name="bet_amount_hidden" id="lose-bet-hidden" value="{{ default_bet }}">
                 </form>
                 
+                <!-- Player Wins Form -->
                 <form method="POST" action="{{ url_for('player_wins_route') }}" id="win-form">
                     <button type="submit" id="win-btn"></button>
                     <input type="text" name="winner_name" id="winner-input" placeholder="Winner's Name" required>
@@ -234,6 +245,7 @@
                 </form>
             </div>
             
+            <!-- Leaderboard (Only shown for Spinning Wheel) -->
             <div class="leaderboard">
                 <h2>All-Time Winners Leaderboard</h2>
                 <div class="leaderboard-scroll">
@@ -247,6 +259,7 @@
                 </div>
             </div>
 
+            <!-- Profit History Chart -->
             <div class="chart-container">
                 <h2>Profit History (Spinning Wheel)</h2>
                 <canvas id="wheelChart"></canvas>
@@ -254,12 +267,17 @@
 
         </div>
 
+        <!-- ---------------------------------------------------- -->
+        <!-- 2. ODDS OR EVENS CONTENT (Hidden by default) -->
+        <!-- ---------------------------------------------------- -->
         <div id="odds-game" class="game-content" style="display:none;">
 
+            <!-- Data Display -->
             <div class="data-display">
                 <h2>NET PROFIT: $<span class="oe-profit" id="oe-profit">{{ oe_net_profit_f }}</span></h2> 
                 <p>TOTAL BETS: <strong>{{ oe_total_spins }}</strong></p>
 
+                <!-- WIN/LOSS BAR -->
                 <p style="margin-top: 20px;">WIN/LOSS RATIO: <strong>{{ oe_win_loss_display }}</strong></p>
                 <div class="ratio-bar-container">
                     {% if oe_total_spins > 0 %}
@@ -277,6 +295,7 @@
                 </div>
             </div>
 
+            <!-- Bet Selector Dropdown -->
             <div class="bet-selector">
                 <label for="oe-bet-amount">Current Bet Amount:</label>
                 <select id="oe-bet-amount" onchange="updateButtonLabels('odds')">
@@ -288,24 +307,32 @@
                 </select>
             </div>
 
+            <!-- Control Buttons -->
             <div class="controls">
+                <!-- Player Loses Form -->
                 <form method="POST" action="{{ url_for('odd_even_loses_route') }}" id="oe-lose-form">
                     <button type="submit" id="oe-lose-btn"></button>
                     <input type="hidden" name="bet_amount_hidden" id="oe-lose-bet-hidden" value="{{ default_bet }}">
                 </form>
                 
+                <!-- Player Wins Form -->
                 <form method="POST" action="{{ url_for('odd_even_wins_route') }}" id="oe-win-form">
                     <button type="submit" id="oe-win-btn"></button>
+                    <!-- Note: The Odd/Even game doesn't need a winner input box -->
                     <input type="hidden" name="bet_amount_hidden" id="oe-win-bet-hidden" value="{{ default_bet }}">
                 </form>
             </div>
 
+            <!-- Profit History Chart -->
             <div class="chart-container">
                 <h2>Profit History (Odds or Evens)</h2>
                 <canvas id="oeChart"></canvas>
             </div>
 
         </div>
+        <!-- ---------------------------------------------------- -->
+
+        <!-- 3. Clipboard Buttons (Shared) -->
         <div class="messages">
             <h2>Quick Invite Copier</h2>
             <div class="clipboard-buttons">
@@ -328,6 +355,7 @@
         
     </div>
 
+    <!-- JavaScript for Dynamic Updates, Tabs, and Charts -->
     <script>
         const SW_MULTIPLIER = 9;   // Spinning Wheel payout multiplier
         const OE_MULTIPLIER = 1.8; // Odds or Evens payout multiplier
@@ -351,7 +379,7 @@
             // Show the selected game content
             document.getElementById(gameId + '-game').style.display = 'block';
             // Activate the corresponding button
-            document.querySelector(`.tab-button[onclick="showGame('${gameId}')"]`).classList.add('active');
+            document.getElementById(gameId + '-tab').classList.add('active'); // Use ID for reliable selection
 
             // Re-render chart for the currently active tab to prevent rendering issues
             if (gameId === 'wheel' && window.wheelChartInstance) {
@@ -484,8 +512,10 @@
             window.wheelChartInstance = initChart('wheelChart', swProfitHistory, 'Net Profit (Wheel)', '#3498db');
             window.oeChartInstance = initChart('oeChart', oeProfitHistory, 'Net Profit (Odds/Evens)', '#e67e22'); // Orange for new game
             
-            // 3. Set Initial Tab
-            showGame('wheel'); 
+            // 3. Set Initial Tab (CRITICAL FIX HERE)
+            // Get the tab state passed from Flask or default to 'wheel'
+            const initialTab = '{{ active_tab }}'; 
+            showGame(initialTab); 
 
             // 4. Set initial color for OE profit text based on data
             const oeProfitElement = document.getElementById('oe-profit');
