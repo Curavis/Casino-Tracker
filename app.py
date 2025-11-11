@@ -58,6 +58,9 @@ def update_leaderboard(player_name, net_casino_cost):
     """Adds or updates player winnings (for Spinning Wheel only)."""
     global leaderboard_data
     
+    # CRITICAL CHANGE: Normalize the name to lowercase for storage
+    player_name = player_name.lower()
+    
     current_winnings = leaderboard_data.get(player_name, 0)
     current_winnings += net_casino_cost
     leaderboard_data[player_name] = current_winnings
@@ -92,6 +95,26 @@ def load_data():
         except json.JSONDecodeError:
             print("Error reading data file. Starting fresh.")
 
+    # --- Data Normalization: Leaderboard Cleanup (Merges names like "John" and "john") ---
+    if data_loaded and leaderboard_data:
+        normalized_leaderboard = {}
+        for player, winnings in leaderboard_data.items():
+            lower_name = player.lower()
+            normalized_leaderboard[lower_name] = normalized_leaderboard.get(lower_name, 0) + winnings
+        
+        # Check if normalization resulted in any changes (fewer keys or mixed case removed)
+        needs_save = len(leaderboard_data) != len(normalized_leaderboard) or any(name != name.lower() for name in leaderboard_data.keys())
+
+        # Update the global leaderboard
+        leaderboard_data.clear()
+        leaderboard_data.update(normalized_leaderboard)
+
+        # Save the cleaned data back to disk if changes were made
+        if needs_save:
+             print("Leaderboard names normalized (all lowercase for storage). Saving data.")
+             save_data()
+
+
     # --- HISTORICAL DATA RECALCULATION FIX (Spinning Wheel) ---
     if data_loaded and total_wins == -1:
         calculated_wins = 0
@@ -120,7 +143,8 @@ def save_data():
         # Spinning Wheel Data
         "net_profit": net_profit,
         "loss_streak": loss_streak,
-        "leaderboard_data": leaderboard_data,
+        # Leaderboard keys are now guaranteed to be lowercase
+        "leaderboard_data": leaderboard_data, 
         "profit_history": profit_history,
         "total_wins": total_wins,
         
@@ -165,13 +189,14 @@ def index():
         
     # Sort leaderboard for display
     sorted_leaderboard = sorted(leaderboard_data.items(), key=lambda item: item[1], reverse=True)
-    formatted_leaderboard = [(name, format_currency(winnings)) for name, winnings in sorted_leaderboard]
+    # CRITICAL CHANGE: Use .title() to capitalize the name for display purposes
+    formatted_leaderboard = [(name.title(), format_currency(winnings)) for name, winnings in sorted_leaderboard]
     
     # Data passed to the HTML template
     context = {
         # Spinning Wheel Context
         'net_profit_f': format_currency(net_profit),
-        'leaderboard_f': formatted_leaderboard,
+        'leaderboard_f': formatted_leaderboard, # Now uses title case for display
         'loss_streak': loss_streak,
         'profit_history': profit_history,
         'sw_win_percent': sw_win_percent,
@@ -234,7 +259,8 @@ def player_wins_route():
     profit_history.append(net_profit)
     
     if winner_name and winner_name.strip():
-        update_leaderboard(winner_name.strip(), net_casino_cost)
+        # update_leaderboard handles the lowercase conversion
+        update_leaderboard(winner_name.strip(), net_casino_cost) 
     
     save_data()
     
