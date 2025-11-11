@@ -67,7 +67,7 @@ def update_leaderboard(player_name, net_casino_cost):
 def load_data():
     """Loads all game data from the JSON file."""
     global net_profit, loss_streak, leaderboard_data, profit_history, total_wins
-    global oe_net_profit, oe_profit_history, oe_total_wins # NEW
+    global oe_net_profit, oe_profit_history, oe_total_wins 
     
     data_loaded = False
     
@@ -83,7 +83,7 @@ def load_data():
                 profit_history = data.get("profit_history", [0]) 
                 total_wins = data.get("total_wins", -1) 
 
-                # NEW Odds/Evens Data
+                # Odds/Evens Data
                 oe_net_profit = data.get("oe_net_profit", 0)
                 oe_profit_history = data.get("oe_profit_history", [0])
                 oe_total_wins = data.get("oe_total_wins", -1)
@@ -107,10 +107,9 @@ def load_data():
         print(f"Historical Spinning Wheel total_wins calculated: {total_wins}")
         save_data() 
         
-    # --- HISTORICAL DATA RECALCULATION FIX (Odds or Evens) ---
-    # Since this is a new game mode, we assume oe_total_wins is 0 if history exists but key is missing.
+    # --- HISTORICAL DATA INITIALIZATION FIX (Odds or Evens) ---
     if data_loaded and oe_total_wins == -1:
-        # If the key was missing, but we have history, start the win count at 0 for OE
+        # Initialize to 0 if the key was missing (it's a new game mode)
         oe_total_wins = 0
         save_data()
 
@@ -125,7 +124,7 @@ def save_data():
         "profit_history": profit_history,
         "total_wins": total_wins,
         
-        # NEW Odds/Evens Data
+        # Odds/Evens Data
         "oe_net_profit": oe_net_profit,
         "oe_profit_history": oe_profit_history,
         "oe_total_wins": oe_total_wins
@@ -180,7 +179,7 @@ def index():
         'sw_total_spins': sw_total_spins,
         'sw_win_loss_display': sw_win_loss_display,
         
-        # NEW Odds or Evens Context
+        # Odds or Evens Context
         'oe_net_profit_f': format_currency(oe_net_profit),
         'oe_profit_history': oe_profit_history,
         'oe_win_percent': oe_win_percent,
