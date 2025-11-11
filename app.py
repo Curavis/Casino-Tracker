@@ -6,7 +6,6 @@ import os
 app = Flask(__name__)
 
 # FINAL DATA FIX: Use the persistent disk path on Render
-# You MUST configure a disk named '/var/data' on Render for this to work.
 DATA_FILE = "/var/data/casino_data.json" 
 
 # --- Game Parameters ---
@@ -19,7 +18,7 @@ net_profit = 0
 loss_streak = 0
 leaderboard_data = {}
 profit_history = []
-total_wins = 0 # NEW: Variable to track total wins
+total_wins = 0 
 
 SAVED_MESSAGES = {
     "Hot Wheel": "The wheel is hot! It's got to be ready any spin now!", 
@@ -30,8 +29,10 @@ SAVED_MESSAGES = {
 
 # --- Data Persistence Functions ---
 def load_data():
-    """Loads profit data from the JSON file if it exists."""
+    """Loads profit data from the JSON file if it exists and initializes total_wins."""
     global net_profit, loss_streak, leaderboard_data, profit_history, total_wins
+    
+    data_loaded = False
     
     if os.path.exists(DATA_FILE):
         try:
@@ -41,9 +42,34 @@ def load_data():
                 loss_streak = data.get("loss_streak", 0)
                 leaderboard_data = data.get("leaderboard_data", {})
                 profit_history = data.get("profit_history", [0]) 
-                total_wins = data.get("total_wins", 0) # NEW: Load total wins
+                total_wins = data.get("total_wins", -1) # Use -1 to detect if the key was missing
+
+                data_loaded = True
         except json.JSONDecodeError:
             print("Error reading data file. Starting fresh.")
+
+    # --- HISTORICAL DATA RECALCULATION FIX ---
+    # If total_wins was not found (or initialized to -1), calculate the historical wins.
+    # A win is recorded when net_profit decreases by NET_CASINO_COST.
+    if data_loaded and total_wins == -1:
+        calculated_wins = 0
+        
+        # profit_history starts at [0]. We look at changes between subsequent spins.
+        for i in range(1, len(profit_history)):
+            current_profit = profit_history[i]
+            previous_profit = profit_history[i-1]
+            
+            # If the profit dropped by the exact casino cost, it was a win.
+            if previous_profit - current_profit == NET_CASINO_COST:
+                calculated_wins += 1
+        
+        total_wins = calculated_wins
+        print(f"Historical total_wins calculated: {total_wins}")
+        # Immediately save to update the file with the correct total_wins count
+        save_data() 
+    
+    # If the file didn't exist or was corrupt, total_wins remains 0 (default init)
+
 
 def save_data():
     """Saves the current profit data to the JSON file."""
@@ -52,7 +78,7 @@ def save_data():
         "loss_streak": loss_streak,
         "leaderboard_data": leaderboard_data,
         "profit_history": profit_history,
-        "total_wins": total_wins # NEW: Save total wins
+        "total_wins": total_wins
     }
     # Ensure the directory exists before saving (for the first run)
     os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
@@ -147,7 +173,7 @@ def player_wins_route():
     
     net_profit -= NET_CASINO_COST
     loss_streak = 0
-    total_wins += 1 # NEW: Increment total wins
+    total_wins += 1 
     
     profit_history.append(net_profit)
     
