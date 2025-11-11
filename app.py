@@ -8,16 +8,24 @@ app = Flask(__name__)
 # FINAL DATA FIX: Use the persistent disk path on Render
 DATA_FILE = "/var/data/casino_data.json" 
 
-# --- Fixed Game Parameters ---
-TOTAL_PAYOUT_MULTIPLIER = 9 # Payout is 9x the bet amount (225000 / 25000 = 9)
-DEFAULT_BET_AMOUNT = 25000 # Used for initialization if needed
+# --- Game Parameters (Spinning Wheel) ---
+TOTAL_PAYOUT_MULTIPLIER = 9 # Payout is 9x the bet amount 
+DEFAULT_BET_AMOUNT = 25000 
 
-# Global variables will be updated by load_data()
+# --- Game Parameters (Odds or Evens) ---
+ODD_EVEN_PAYOUT_MULTIPLIER = 1.8 # Payout is 1.8x the bet amount
+
+# Global variables (Spinning Wheel)
 net_profit = 0
 loss_streak = 0
 leaderboard_data = {}
 profit_history = []
 total_wins = 0 
+
+# NEW Global variables (Odds or Evens)
+oe_net_profit = 0
+oe_profit_history = []
+oe_total_wins = 0
 
 SAVED_MESSAGES = {
     "Hot Wheel": "The wheel is hot! It's got to be ready any spin now!", 
@@ -27,21 +35,39 @@ SAVED_MESSAGES = {
 
 
 # --- Utility Functions ---
-def calculate_net_cost(bet_amount):
-    """Calculates the net cost to the casino for a win, based on the bet."""
+def calculate_wheel_net_cost(bet_amount):
+    """Calculates the net cost to the casino for a SPINNING WHEEL win."""
     bet_amount = int(bet_amount)
     total_payout = bet_amount * TOTAL_PAYOUT_MULTIPLIER
     net_casino_cost = total_payout - bet_amount
     return net_casino_cost
 
+def calculate_oe_net_cost(bet_amount):
+    """Calculates the net cost to the casino for an ODD/EVEN win (1.8x payout)."""
+    bet_amount = int(bet_amount)
+    # The amount the player wins is (1.8 * bet) - bet
+    player_profit = (ODD_EVEN_PAYOUT_MULTIPLIER - 1) * bet_amount
+    # The cost to the casino is the player's profit
+    return round(player_profit) # Round to prevent float errors
+
 def format_currency(number):
     """Formats a number as a string with commas."""
     return "{:,.0f}".format(number)
 
+def update_leaderboard(player_name, net_casino_cost):
+    """Adds or updates player winnings (for Spinning Wheel only)."""
+    global leaderboard_data
+    
+    current_winnings = leaderboard_data.get(player_name, 0)
+    current_winnings += net_casino_cost
+    leaderboard_data[player_name] = current_winnings
+
+
 # --- Data Persistence Functions ---
 def load_data():
-    """Loads profit data from the JSON file if it exists and initializes total_wins."""
+    """Loads all game data from the JSON file."""
     global net_profit, loss_streak, leaderboard_data, profit_history, total_wins
+    global oe_net_profit, oe_profit_history, oe_total_wins # NEW
     
     data_loaded = False
     
@@ -49,56 +75,65 @@ def load_data():
         try:
             with open(DATA_FILE, 'r') as f:
                 data = json.load(f)
+                
+                # Spinning Wheel Data
                 net_profit = data.get("net_profit", 0)
                 loss_streak = data.get("loss_streak", 0)
                 leaderboard_data = data.get("leaderboard_data", {})
                 profit_history = data.get("profit_history", [0]) 
                 total_wins = data.get("total_wins", -1) 
 
+                # NEW Odds/Evens Data
+                oe_net_profit = data.get("oe_net_profit", 0)
+                oe_profit_history = data.get("oe_profit_history", [0])
+                oe_total_wins = data.get("oe_total_wins", -1)
+                
                 data_loaded = True
         except json.JSONDecodeError:
             print("Error reading data file. Starting fresh.")
 
-    # --- HISTORICAL DATA RECALCULATION FIX ---
-    # Recalculation logic remains the same
+    # --- HISTORICAL DATA RECALCULATION FIX (Spinning Wheel) ---
     if data_loaded and total_wins == -1:
         calculated_wins = 0
-        # NOTE: This historical calculation is based on the original BET_AMOUNT logic.
-        # Since we don't have historical bet amounts, we must assume a fixed win cost (225000 - 25000).
-        HISTORICAL_NET_CASINO_COST = 200000 
+        HISTORICAL_NET_CASINO_COST = calculate_wheel_net_cost(DEFAULT_BET_AMOUNT) 
         
         for i in range(1, len(profit_history)):
             current_profit = profit_history[i]
             previous_profit = profit_history[i-1]
-            
-            # If the profit dropped by the fixed historical cost, it was a win.
             if previous_profit - current_profit == HISTORICAL_NET_CASINO_COST:
                 calculated_wins += 1
         
         total_wins = calculated_wins
-        print(f"Historical total_wins calculated: {total_wins}")
+        print(f"Historical Spinning Wheel total_wins calculated: {total_wins}")
         save_data() 
-    
+        
+    # --- HISTORICAL DATA RECALCULATION FIX (Odds or Evens) ---
+    # Since this is a new game mode, we assume oe_total_wins is 0 if history exists but key is missing.
+    if data_loaded and oe_total_wins == -1:
+        # If the key was missing, but we have history, start the win count at 0 for OE
+        oe_total_wins = 0
+        save_data()
+
+
 def save_data():
     """Saves the current profit data to the JSON file."""
     data = {
+        # Spinning Wheel Data
         "net_profit": net_profit,
         "loss_streak": loss_streak,
         "leaderboard_data": leaderboard_data,
         "profit_history": profit_history,
-        "total_wins": total_wins
+        "total_wins": total_wins,
+        
+        # NEW Odds/Evens Data
+        "oe_net_profit": oe_net_profit,
+        "oe_profit_history": oe_profit_history,
+        "oe_total_wins": oe_total_wins
     }
     os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-def update_leaderboard(player_name, net_casino_cost):
-    """Adds or updates player winnings."""
-    global leaderboard_data
-    
-    current_winnings = leaderboard_data.get(player_name, 0)
-    current_winnings += net_casino_cost
-    leaderboard_data[player_name] = current_winnings
 
 # --- Flask Routes ---
 
@@ -107,51 +142,66 @@ def index():
     """Main page route - Loads data, formats numbers, and renders the HTML interface."""
     load_data() 
     
-    # Calculate Total Spins and Win/Loss Ratios
-    total_spins = len(profit_history) - 1
-    
-    if total_spins > 0:
-        total_losses = total_spins - total_wins
-        win_percent = round((total_wins / total_spins) * 100)
-        loss_percent = 100 - win_percent
-        win_loss_display = f"{total_wins} Wins / {total_losses} Losses"
+    # --- SPINNING WHEEL CALCULATIONS ---
+    sw_total_spins = len(profit_history) - 1
+    if sw_total_spins > 0:
+        sw_total_losses = sw_total_spins - total_wins
+        sw_win_percent = round((total_wins / sw_total_spins) * 100)
+        sw_loss_percent = 100 - sw_win_percent
+        sw_win_loss_display = f"{total_wins} Wins / {sw_total_losses} Losses"
     else:
-        win_percent = 0
-        loss_percent = 0
-        win_loss_display = "Start Spinning!"
-    
+        sw_win_percent, sw_loss_percent = 0, 0
+        sw_win_loss_display = "Start Spinning!"
+
+    # --- ODDS OR EVENS CALCULATIONS ---
+    oe_total_spins = len(oe_profit_history) - 1
+    if oe_total_spins > 0:
+        oe_total_losses = oe_total_spins - oe_total_wins
+        oe_win_percent = round((oe_total_wins / oe_total_spins) * 100)
+        oe_loss_percent = 100 - oe_win_percent
+        oe_win_loss_display = f"{oe_total_wins} Wins / {oe_total_losses} Losses"
+    else:
+        oe_win_percent, oe_loss_percent = 0, 0
+        oe_win_loss_display = "Start Betting!"
+        
     # Sort leaderboard for display
     sorted_leaderboard = sorted(leaderboard_data.items(), key=lambda item: item[1], reverse=True)
     formatted_leaderboard = [(name, format_currency(winnings)) for name, winnings in sorted_leaderboard]
     
     # Data passed to the HTML template
     context = {
+        # Spinning Wheel Context
         'net_profit_f': format_currency(net_profit),
         'leaderboard_f': formatted_leaderboard,
         'loss_streak': loss_streak,
-        'messages': SAVED_MESSAGES,
         'profit_history': profit_history,
-        'win_percent': win_percent,
-        'loss_percent': loss_percent,
-        'total_spins': total_spins,
-        'win_loss_display': win_loss_display,
+        'sw_win_percent': sw_win_percent,
+        'sw_loss_percent': sw_loss_percent,
+        'sw_total_spins': sw_total_spins,
+        'sw_win_loss_display': sw_win_loss_display,
         
-        # NEW: Betting options for the template
-        'bet_options': [i * 25000 for i in range(1, 11)], # 25000 up to 250000
-        'default_bet': DEFAULT_BET_AMOUNT # For initial display
+        # NEW Odds or Evens Context
+        'oe_net_profit_f': format_currency(oe_net_profit),
+        'oe_profit_history': oe_profit_history,
+        'oe_win_percent': oe_win_percent,
+        'oe_loss_percent': oe_loss_percent,
+        'oe_total_spins': oe_total_spins,
+        'oe_win_loss_display': oe_win_loss_display,
+        
+        # General Context
+        'messages': SAVED_MESSAGES,
+        'bet_options': [i * 25000 for i in range(1, 11)], 
+        'default_bet': DEFAULT_BET_AMOUNT 
     }
     
     return render_template('index.html', **context)
 
-
+# --- SPINNING WHEEL ROUTES ---
 @app.route('/lose', methods=['POST'])
 def player_loses_route():
-    """Handles the Player LOSES button click."""
     global net_profit, loss_streak, profit_history
-    
     load_data()
     
-    # NEW: Get bet amount from the form
     try:
         bet_amount = int(request.form.get('bet_amount_hidden'))
     except (ValueError, TypeError):
@@ -159,29 +209,24 @@ def player_loses_route():
     
     net_profit += bet_amount
     loss_streak += 1
-    
     profit_history.append(net_profit)
     save_data()
     
     return redirect(url_for('index'))
 
-
 @app.route('/win', methods=['POST'])
 def player_wins_route():
-    """Handles the Player WINS button click and winner input."""
     global net_profit, loss_streak, profit_history, total_wins
-    
     load_data()
     
     winner_name = request.form.get('winner_name')
     
-    # NEW: Get bet amount and calculate net cost
     try:
         bet_amount = int(request.form.get('bet_amount_hidden'))
     except (ValueError, TypeError):
         bet_amount = DEFAULT_BET_AMOUNT
         
-    net_casino_cost = calculate_net_cost(bet_amount)
+    net_casino_cost = calculate_wheel_net_cost(bet_amount)
     
     net_profit -= net_casino_cost
     loss_streak = 0
@@ -190,9 +235,47 @@ def player_wins_route():
     profit_history.append(net_profit)
     
     if winner_name and winner_name.strip():
-        # Pass the calculated cost to the leaderboard update function
         update_leaderboard(winner_name.strip(), net_casino_cost)
     
+    save_data()
+    
+    return redirect(url_for('index'))
+
+# --- NEW ODDS OR EVENS ROUTES ---
+@app.route('/odd_even_loses', methods=['POST'])
+def odd_even_loses_route():
+    """Handles the Odd/Even Player LOSES button click."""
+    global oe_net_profit, oe_profit_history
+    load_data()
+    
+    try:
+        bet_amount = int(request.form.get('bet_amount_hidden'))
+    except (ValueError, TypeError):
+        bet_amount = DEFAULT_BET_AMOUNT
+    
+    oe_net_profit += bet_amount # Casino gains the full bet
+    oe_profit_history.append(oe_net_profit)
+    save_data()
+    
+    return redirect(url_for('index'))
+
+@app.route('/odd_even_wins', methods=['POST'])
+def odd_even_wins_route():
+    """Handles the Odd/Even Player WINS button click."""
+    global oe_net_profit, oe_profit_history, oe_total_wins
+    load_data()
+    
+    try:
+        bet_amount = int(request.form.get('bet_amount_hidden'))
+    except (ValueError, TypeError):
+        bet_amount = DEFAULT_BET_AMOUNT
+        
+    net_casino_cost = calculate_oe_net_cost(bet_amount)
+    
+    oe_net_profit -= net_casino_cost # Casino pays out the net cost
+    oe_total_wins += 1 
+    
+    oe_profit_history.append(oe_net_profit)
     save_data()
     
     return redirect(url_for('index'))
