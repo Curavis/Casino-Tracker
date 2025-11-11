@@ -8,10 +8,9 @@ app = Flask(__name__)
 # FINAL DATA FIX: Use the persistent disk path on Render
 DATA_FILE = "/var/data/casino_data.json" 
 
-# --- Game Parameters ---
-BET_AMOUNT = 25000
-TOTAL_PAYOUT = 225000
-NET_CASINO_COST = TOTAL_PAYOUT - BET_AMOUNT
+# --- Fixed Game Parameters ---
+TOTAL_PAYOUT_MULTIPLIER = 9 # Payout is 9x the bet amount (225000 / 25000 = 9)
+DEFAULT_BET_AMOUNT = 25000 # Used for initialization if needed
 
 # Global variables will be updated by load_data()
 net_profit = 0
@@ -26,6 +25,18 @@ SAVED_MESSAGES = {
     "Chance": "Anyone care to take a chance on the wheel?" 
 }
 
+
+# --- Utility Functions ---
+def calculate_net_cost(bet_amount):
+    """Calculates the net cost to the casino for a win, based on the bet."""
+    bet_amount = int(bet_amount)
+    total_payout = bet_amount * TOTAL_PAYOUT_MULTIPLIER
+    net_casino_cost = total_payout - bet_amount
+    return net_casino_cost
+
+def format_currency(number):
+    """Formats a number as a string with commas."""
+    return "{:,.0f}".format(number)
 
 # --- Data Persistence Functions ---
 def load_data():
@@ -42,35 +53,32 @@ def load_data():
                 loss_streak = data.get("loss_streak", 0)
                 leaderboard_data = data.get("leaderboard_data", {})
                 profit_history = data.get("profit_history", [0]) 
-                total_wins = data.get("total_wins", -1) # Use -1 to detect if the key was missing
+                total_wins = data.get("total_wins", -1) 
 
                 data_loaded = True
         except json.JSONDecodeError:
             print("Error reading data file. Starting fresh.")
 
     # --- HISTORICAL DATA RECALCULATION FIX ---
-    # If total_wins was not found (or initialized to -1), calculate the historical wins.
-    # A win is recorded when net_profit decreases by NET_CASINO_COST.
+    # Recalculation logic remains the same
     if data_loaded and total_wins == -1:
         calculated_wins = 0
+        # NOTE: This historical calculation is based on the original BET_AMOUNT logic.
+        # Since we don't have historical bet amounts, we must assume a fixed win cost (225000 - 25000).
+        HISTORICAL_NET_CASINO_COST = 200000 
         
-        # profit_history starts at [0]. We look at changes between subsequent spins.
         for i in range(1, len(profit_history)):
             current_profit = profit_history[i]
             previous_profit = profit_history[i-1]
             
-            # If the profit dropped by the exact casino cost, it was a win.
-            if previous_profit - current_profit == NET_CASINO_COST:
+            # If the profit dropped by the fixed historical cost, it was a win.
+            if previous_profit - current_profit == HISTORICAL_NET_CASINO_COST:
                 calculated_wins += 1
         
         total_wins = calculated_wins
         print(f"Historical total_wins calculated: {total_wins}")
-        # Immediately save to update the file with the correct total_wins count
         save_data() 
     
-    # If the file didn't exist or was corrupt, total_wins remains 0 (default init)
-
-
 def save_data():
     """Saves the current profit data to the JSON file."""
     data = {
@@ -80,22 +88,17 @@ def save_data():
         "profit_history": profit_history,
         "total_wins": total_wins
     }
-    # Ensure the directory exists before saving (for the first run)
     os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
-def update_leaderboard(player_name):
+def update_leaderboard(player_name, net_casino_cost):
     """Adds or updates player winnings."""
     global leaderboard_data
     
     current_winnings = leaderboard_data.get(player_name, 0)
-    current_winnings += NET_CASINO_COST
+    current_winnings += net_casino_cost
     leaderboard_data[player_name] = current_winnings
-
-def format_currency(number):
-    """Formats a number as a string with commas."""
-    return "{:,.0f}".format(number)
 
 # --- Flask Routes ---
 
@@ -105,13 +108,12 @@ def index():
     load_data() 
     
     # Calculate Total Spins and Win/Loss Ratios
-    total_spins = len(profit_history) - 1 # History includes the starting point (0), so subtract 1
+    total_spins = len(profit_history) - 1
     
     if total_spins > 0:
         total_losses = total_spins - total_wins
         win_percent = round((total_wins / total_spins) * 100)
         loss_percent = 100 - win_percent
-        # Format the display string
         win_loss_display = f"{total_wins} Wins / {total_losses} Losses"
     else:
         win_percent = 0
@@ -120,26 +122,23 @@ def index():
     
     # Sort leaderboard for display
     sorted_leaderboard = sorted(leaderboard_data.items(), key=lambda item: item[1], reverse=True)
-    
-    # Format all necessary numbers in Python before sending them to HTML
     formatted_leaderboard = [(name, format_currency(winnings)) for name, winnings in sorted_leaderboard]
     
     # Data passed to the HTML template
     context = {
         'net_profit_f': format_currency(net_profit),
-        'bet_amount_f': format_currency(BET_AMOUNT),
-        'net_casino_cost_f': format_currency(NET_CASINO_COST),
         'leaderboard_f': formatted_leaderboard,
-        
         'loss_streak': loss_streak,
         'messages': SAVED_MESSAGES,
         'profit_history': profit_history,
-        
-        # NEW: Win/Loss Ratio Data
         'win_percent': win_percent,
         'loss_percent': loss_percent,
         'total_spins': total_spins,
-        'win_loss_display': win_loss_display
+        'win_loss_display': win_loss_display,
+        
+        # NEW: Betting options for the template
+        'bet_options': [i * 25000 for i in range(1, 11)], # 25000 up to 250000
+        'default_bet': DEFAULT_BET_AMOUNT # For initial display
     }
     
     return render_template('index.html', **context)
@@ -152,11 +151,16 @@ def player_loses_route():
     
     load_data()
     
-    net_profit += BET_AMOUNT
+    # NEW: Get bet amount from the form
+    try:
+        bet_amount = int(request.form.get('bet_amount_hidden'))
+    except (ValueError, TypeError):
+        bet_amount = DEFAULT_BET_AMOUNT
+    
+    net_profit += bet_amount
     loss_streak += 1
     
     profit_history.append(net_profit)
-    
     save_data()
     
     return redirect(url_for('index'))
@@ -171,14 +175,23 @@ def player_wins_route():
     
     winner_name = request.form.get('winner_name')
     
-    net_profit -= NET_CASINO_COST
+    # NEW: Get bet amount and calculate net cost
+    try:
+        bet_amount = int(request.form.get('bet_amount_hidden'))
+    except (ValueError, TypeError):
+        bet_amount = DEFAULT_BET_AMOUNT
+        
+    net_casino_cost = calculate_net_cost(bet_amount)
+    
+    net_profit -= net_casino_cost
     loss_streak = 0
     total_wins += 1 
     
     profit_history.append(net_profit)
     
     if winner_name and winner_name.strip():
-        update_leaderboard(winner_name.strip())
+        # Pass the calculated cost to the leaderboard update function
+        update_leaderboard(winner_name.strip(), net_casino_cost)
     
     save_data()
     
