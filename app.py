@@ -5,7 +5,7 @@ import os
 # --- Configuration & Global Data ---
 app = Flask(__name__)
 
-# FINAL DATA FIX: Use the persistent disk path on Render
+# FINAL DATA FIX: Use the persistent disk path
 DATA_FILE = "/var/data/casino_data.json" 
 
 # --- Game Parameters (Spinning Wheel) ---
@@ -47,7 +47,6 @@ def calculate_oe_net_cost(bet_amount):
     bet_amount = int(bet_amount)
     # The amount the player wins is (1.8 * bet) - bet
     player_profit = (ODD_EVEN_PAYOUT_MULTIPLIER - 1) * bet_amount
-    # The cost to the casino is the player's profit
     return round(player_profit) # Round to prevent float errors
 
 def format_currency(number):
@@ -58,7 +57,7 @@ def update_leaderboard(player_name, net_casino_cost):
     """Adds or updates player winnings (for Spinning Wheel only)."""
     global leaderboard_data
     
-    # CRITICAL CHANGE: Normalize the name to lowercase for storage
+    # CRITICAL: Normalize the name to lowercase for storage
     player_name = player_name.lower()
     
     current_winnings = leaderboard_data.get(player_name, 0)
@@ -165,6 +164,9 @@ def index():
     """Main page route - Loads data, formats numbers, and renders the HTML interface."""
     load_data() 
     
+    # CRITICAL FIX 1: Capture the active tab from the URL query string, default to 'wheel'
+    active_tab = request.args.get('active_tab', 'wheel')
+    
     # --- SPINNING WHEEL CALCULATIONS ---
     sw_total_spins = len(profit_history) - 1
     if sw_total_spins > 0:
@@ -215,12 +217,14 @@ def index():
         # General Context
         'messages': SAVED_MESSAGES,
         'bet_options': [i * 25000 for i in range(1, 11)], 
-        'default_bet': DEFAULT_BET_AMOUNT 
+        'default_bet': DEFAULT_BET_AMOUNT,
+        # CRITICAL FIX 2: Pass the active tab back to the template
+        'active_tab': active_tab 
     }
     
     return render_template('index.html', **context)
 
-# --- SPINNING WHEEL ROUTES ---
+# --- SPINNING WHEEL ROUTES (No change needed for redirects) ---
 @app.route('/lose', methods=['POST'])
 def player_loses_route():
     global net_profit, loss_streak, profit_history
@@ -266,7 +270,7 @@ def player_wins_route():
     
     return redirect(url_for('index'))
 
-# --- NEW ODDS OR EVENS ROUTES ---
+# --- NEW ODDS OR EVENS ROUTES (Redirects updated to include active_tab) ---
 @app.route('/odd_even_loses', methods=['POST'])
 def odd_even_loses_route():
     """Handles the Odd/Even Player LOSES button click."""
@@ -282,7 +286,8 @@ def odd_even_loses_route():
     oe_profit_history.append(oe_net_profit)
     save_data()
     
-    return redirect(url_for('index'))
+    # CRITICAL FIX 3: Redirect back to index with the 'odds' tab active
+    return redirect(url_for('index', active_tab='odds'))
 
 @app.route('/odd_even_wins', methods=['POST'])
 def odd_even_wins_route():
@@ -303,7 +308,8 @@ def odd_even_wins_route():
     oe_profit_history.append(oe_net_profit)
     save_data()
     
-    return redirect(url_for('index'))
+    # CRITICAL FIX 4: Redirect back to index with the 'odds' tab active
+    return redirect(url_for('index', active_tab='odds'))
 
 
 if __name__ == '__main__':
