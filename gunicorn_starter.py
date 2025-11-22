@@ -1,8 +1,7 @@
 # --- Gunicorn Starter: gunicorn_starter.py ---
-# This file is the required entry point for the Gunicorn WSGI server.
+# This file serves as the required entry point for the Gunicorn WSGI server.
+# It ensures the application object is named 'app' to match the default Gunicorn startup command 
+# used by the deployment environment (gunicorn gunicorn_starter:app).
 
-# It imports the Flask app instance named 'app' from app.py 
-# and aliases it as 'application', which is the standard variable 
-# name Gunicorn looks for to start the server.
-
-from app import app as application
+from app import app
+# The Flask application instance is now correctly imported as 'app'.
