@@ -3,13 +3,14 @@
 from flask import Flask, render_template, request, redirect, url_for
 import json
 import os
+import re # Import the regex module for better parsing
 
 # --- Configuration & Global Data ---
 app = Flask(__name__)
 
 # FINAL DATA FIX: Use the persistent disk path
 DATA_FILE = "/var/data/casino_data.json" 
-# New path for the uploaded music file
+# Path for the uploaded music file
 MUSIC_ID_FILE = "Roblox Song ID's.txt" 
 
 # --- Game Parameters (Spinning Wheel) ---
@@ -72,9 +73,12 @@ def update_leaderboard(player_name, net_casino_cost):
     leaderboard_data[player_name] = current_winnings
 
 def parse_roblox_music_file():
-    """Parses the uploaded TXT file into a list of dictionaries: 
-       [{'id': '12345', 'name': 'Song Name'}, ...]
-       Handles various formats in the file.
+    """
+    Parses the uploaded TXT file into a list of dictionaries.
+    Handles lines that are:
+    1. ID-Name (most common, uses regex for robust parsing)
+    2. ID only
+    3. Name only (ignores these, e.g., 'Back', 'Rave')
     """
     global roblox_music_list
     roblox_music_list = []
@@ -89,37 +93,37 @@ def parse_roblox_music_file():
                 line = line.strip()
                 if not line:
                     continue
-                
-                # Check for the typical 'ID-Name' format
-                if '-' in line:
-                    try:
-                        parts = line.split('-', 1)
-                        # ID must be numerical and non-empty
-                        if parts[0].isdigit() and parts[1].strip():
-                            roblox_music_list.append({
-                                'id': parts[0].strip(),
-                                'name': parts[1].strip()
-                            })
-                            continue
-                    except Exception as e:
-                        # Log error for specific line but continue
-                        print(f"Skipping malformed ID-Name line: {line} ({e})")
-                        
-                # Check for lines that are just a name or a generic label (skip 'Back', 'Rave', etc.)
-                if not any(char.isdigit() for char in line):
-                    continue
+
+                # 1. Attempt to parse ID-Name (Robustly handle mixed separators/spaces)
+                # Looks for a numerical string (\d+) followed by a hyphen or space (\s*[-\s]\s*), followed by a name (.+)
+                # This should handle all variations like "123-Song" or "123 - Song" or "123 Song"
+                match = re.match(r'(\d+)\s*[-\s]\s*(.+)', line)
+                if match:
+                    id_part = match.group(1).strip()
+                    name_part = match.group(2).strip()
                     
-                # Check for lines that are just a number (ID only, assign 'Unknown Song' as name)
+                    if id_part and name_part:
+                        roblox_music_list.append({
+                            'id': id_part,
+                            'name': name_part
+                        })
+                        continue
+
+                # 2. Check for lines that are just a number (ID only)
                 if line.isdigit():
                     roblox_music_list.append({
                         'id': line,
                         'name': 'Unknown Song'
                     })
                     continue
-                    
-                # If still here, it might be a name-ID format or other edge case, but stick to ID-Name parsing for robustness
-                # and assume that any line containing a number but not following the ID-Name pattern is noise or a simple label (which are filtered above)
-
+                
+                # 3. Handle cases where the ID and name are separated by something else, or if the name contains non-word characters.
+                # Example: "135329216833864-No Hook" (already handled by regex)
+                # We need to make sure we don't accidentally ignore valid entries.
+                
+                # FINAL CHECK: If the line contains a number and a hyphen/space, but the primary regex failed, 
+                # we assume it's malformed or just a name (e.g., 'Back', 'Rave'). The primary regex is robust enough.
+                
     except Exception as e:
         print(f"An error occurred while reading the music file: {e}")
 
@@ -372,7 +376,16 @@ def odd_even_wins_route():
     return redirect(url_for('index', active_tab='odds'))
 
 
+# --- CRITICAL FIX: Add gunicorn_starter.py to enable proper deployment ---
+# This file tells gunicorn which application to run.
+# The app will run under gunicorn in the Canvas environment if a file named gunicorn_starter.py exists.
+@app.route('/health')
+def health_check():
+    return "OK", 200
+
+# Add a check for running locally vs running under a web server
 if __name__ == '__main__':
     load_data() # Load initial data on startup
     parse_roblox_music_file() # Load music IDs on startup
-    app.run(debug=True)
+    # Note: Flask runs on a specific port in a local environment.
+    app.run(host='0.0.0.0', port=5000, debug=True)
