@@ -174,21 +174,27 @@
             border-radius: 4px; width: 100%; 
         }
         
-        /* Music List Specific Styling */
+        /* Music List Specific Styling - FIX APPLIED HERE */
         .music-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            /* Changed from display: flex to display: block for li elements */
+            display: block; 
             padding: 8px 12px;
             margin: 4px 0;
-            background-color: #3c3c3c; /* Darker background for contrast */
+            background-color: #3c3c3c; 
             border-radius: 6px;
             cursor: pointer;
             transition: background-color 0.2s, box-shadow 0.2s;
         }
         .music-item:hover {
-            background-color: #4a4a4a; /* Lighter on hover */
+            background-color: #4a4a4a; 
             box-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
+        }
+        /* New inner container to manage spacing between Name, ID, and Icon */
+        .music-item-content {
+            display: flex; 
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
         }
         .music-item-name {
             font-weight: bold;
@@ -200,7 +206,7 @@
         .music-item-id {
             font-size: 0.9em;
             color: #a0a0a0;
-            user-select: none; /* Prevent selection of the ID text */
+            user-select: none; 
             margin-left: 15px;
         }
         .music-copy-icon {
@@ -380,12 +386,14 @@
                 <ul>
                     {% for song in roblox_music_list %}
                         <li class="music-item" onclick="copyMusicID('{{ song.id | e }}', '{{ song.name | e }}')">
-                            <span class="music-item-name">{{ song.name }}</span>
-                            <span class="music-item-id">{{ song.id }}</span>
-                            <span class="music-copy-icon">📋</span>
+                            <div class="music-item-content">
+                                <span class="music-item-name">{{ song.name }}</span>
+                                <span class="music-item-id">{{ song.id }}</span>
+                                <span class="music-copy-icon">📋</span>
+                            </div>
                         </li>
                     {% else %}
-                        <li style="padding: 10px; color: #ff6b6b;">No songs found. Please ensure the 'Roblox Song ID's.txt' file is correctly formatted (ID-Name).</li>
+                        <li style="padding: 10px; color: #ff6b6b;">No songs found. Please ensure the 'Roblox Song ID's.txt' file is correctly formatted (ID - Name).</li>
                     {% endfor %}
                 </ul>
             </div>
