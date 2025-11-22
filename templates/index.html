@@ -1,5 +1,3 @@
-<!-- --- HTML Frontend: templates/index.html --- -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -481,7 +479,6 @@
 
                 // Update UI
                 document.getElementById('oe-lose-btn').textContent = `Player LOSES (+ $${formatCurrency(netLoss)})`;
-                // Note: The Odd/Even game doesn't need a winner name input, just the button for a win
                 document.getElementById('oe-win-btn').textContent = `Player WINS (- $${formatCurrency(netWin)})`;
 
                 // Update hidden input fields for form submission
@@ -548,7 +545,6 @@
             textarea.select();
             
             try {
-                // Using document.execCommand('copy') as navigator.clipboard may not work in iframes
                 document.execCommand('copy');
                 statusElement.textContent = `'${key}' Copied!`;
                 statusElement.style.color = 'lightgreen';
@@ -579,7 +575,6 @@
             updateButtonLabels('odds'); 
             
             // 2. Initialize Charts
-            // Use JSON.parse and tojson|safe to correctly handle list serialization from Python/Jinja
             const swProfitHistory = JSON.parse('{{ profit_history | tojson | safe }}');
             const oeProfitHistory = JSON.parse('{{ oe_profit_history | tojson | safe }}');
             
