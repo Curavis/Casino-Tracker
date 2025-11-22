@@ -11,10 +11,9 @@ app = Flask(__name__)
 # FINAL DATA FIX: Use the persistent disk path
 DATA_FILE = "/var/data/casino_data.json" 
 
-# CRITICAL FIX: Use the absolute path to the project root to reliably find the uploaded file.
-# The music file should be located in the same directory as this script.
+# IMPORTANT: The user must rename the file 'Roblox Song ID's.txt' to 'roblox_music_ids.txt'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MUSIC_ID_FILE = os.path.join(BASE_DIR, "Roblox Song ID's.txt") 
+MUSIC_ID_FILE = os.path.join(BASE_DIR, "roblox_music_ids.txt") 
 
 
 # --- Game Parameters (Spinning Wheel) ---
@@ -80,29 +79,30 @@ def parse_roblox_music_file():
     """
     Parses the uploaded TXT file into a list of dictionaries.
     Handles lines that are:
-    1. ID-Name (most common, uses regex for robust parsing)
+    1. ID-Name (most common, uses robust regex for parsing)
     2. ID only
     3. Name only (ignores these, e.g., 'Back', 'Rave')
     """
     global roblox_music_list
     roblox_music_list = []
     
-    # Use the correctly configured absolute path
     if not os.path.exists(MUSIC_ID_FILE):
-        # Print the path it is looking for to the console
         print(f"Music ID file not found at configured path: {MUSIC_ID_FILE}")
         return
 
     try:
         with open(MUSIC_ID_FILE, 'r') as f:
             for line in f:
-                line = line.strip()
+                # Strip leading/trailing whitespace and remove potential carriage returns (\r)
+                line = line.strip().replace('\r', '')
                 if not line:
                     continue
 
-                # 1. Attempt to parse ID-Name (Robustly handle mixed separators/spaces)
-                # Looks for a numerical string (\d+) followed by a hyphen or space (\s*[-\s]\s*), followed by a name (.+)
-                match = re.match(r'(\d+)\s*[-\s]\s*(.+)', line)
+                # 1. Attempt to parse ID and Name (e.g., "123456-Song Title")
+                # Pattern: (\d+) captures the ID, followed by zero or more spaces, 
+                # then a required separator (hyphen or pipe), followed by zero or more spaces, 
+                # then (.+) captures the rest as the name.
+                match = re.match(r'(\d+)\s*[-|]\s*(.+)', line)
                 if match:
                     id_part = match.group(1).strip()
                     name_part = match.group(2).strip()
@@ -122,10 +122,20 @@ def parse_roblox_music_file():
                     })
                     continue
                 
-                # 3. If it is just a name (like 'Back' or 'Rave'), it falls through and is ignored.
+                # 3. Handle lines that contain a space separator (e.g., "123456 Song Title")
+                parts = line.split(maxsplit=1)
+                if len(parts) == 2 and parts[0].isdigit():
+                     roblox_music_list.append({
+                        'id': parts[0],
+                        'name': parts[1]
+                    })
+                     continue
+                
+                # Lines like 'Back' or 'Rave' (ignored as they have no ID)
                 
     except Exception as e:
         print(f"An error occurred while reading the music file: {e}")
+        print(f"The problematic file path was: {MUSIC_ID_FILE}")
 
 
 # --- Data Persistence Functions ---
