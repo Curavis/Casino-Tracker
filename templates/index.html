@@ -1,3 +1,5 @@
+<!-- --- HTML Frontend: templates/index.html --- -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,20 +38,22 @@
         .game-tabs {
             display: flex;
             justify-content: center;
+            flex-wrap: wrap; /* Added for mobile responsiveness */
             margin-bottom: 25px;
             border-bottom: 2px solid #333;
         }
         .tab-button {
-            padding: 12px 25px;
+            padding: 12px 20px;
             cursor: pointer;
             border: none;
             background: #1e1e1e;
             color: #aaa;
-            font-size: 1.1em;
+            font-size: 1.0em;
             transition: background-color 0.3s, color 0.3s;
             border-radius: 8px 8px 0 0;
             border: 1px solid #1e1e1e;
             border-bottom: none;
+            margin: 0 5px; /* Spacing between tabs */
         }
         .tab-button.active {
             background-color: #2c2c2c;
@@ -160,17 +164,53 @@
         }
         
         /* SCROLLING */
-        .leaderboard-scroll {
-            max-height: 200px; overflow-y: scroll; overflow-x: hidden; 
+        .leaderboard-scroll, .music-list-scroll {
+            max-height: 300px; overflow-y: scroll; overflow-x: hidden; 
             padding-right: 10px; margin: 10px auto 0; text-align: left; 
             background-color: #2c2c2c; border-radius: 4px;
+            width: 95%;
         }
-        .leaderboard-scroll ul { list-style: none; padding-left: 10px; margin: 0; }
+        .leaderboard-scroll ul, .music-list-scroll ul { list-style: none; padding-left: 0; margin: 0; }
         .leaderboard-scroll li {
             background-color: #2c2c2c; margin: 2px 0; padding: 6px; 
-            border-radius: 4px; width: 95%; 
+            border-radius: 4px; width: 100%; 
         }
         
+        /* Music List Specific Styling */
+        .music-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            margin: 4px 0;
+            background-color: #3c3c3c; /* Darker background for contrast */
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+        .music-item:hover {
+            background-color: #4a4a4a; /* Lighter on hover */
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
+        }
+        .music-item-name {
+            font-weight: bold;
+            flex-grow: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .music-item-id {
+            font-size: 0.9em;
+            color: #a0a0a0;
+            user-select: none; /* Prevent selection of the ID text */
+            margin-left: 15px;
+        }
+        .music-copy-icon {
+            margin-left: 10px;
+            color: #3498db;
+        }
+
+
         #copy-status { margin-top: 10px; font-weight: bold; color: #aaa; }
 
         /* CHART SPECIFIC STYLES */
@@ -187,10 +227,11 @@
         <div class="game-tabs">
             <button class="tab-button" id="wheel-tab" onclick="showGame('wheel')">Spinning Wheel (9x)</button>
             <button class="tab-button" id="odds-tab" onclick="showGame('odds')">Odds or Evens (1.8x)</button>
+            <button class="tab-button" id="music-tab" onclick="showGame('music')">Roblox Music IDs</button>
         </div>
 
         <!-- ---------------------------------------------------- -->
-        <!-- 1. SPINNING WHEEL CONTENT (Default) -->
+        <!-- 1. SPINNING WHEEL CONTENT -->
         <!-- ---------------------------------------------------- -->
         <div id="wheel-game" class="game-content">
             
@@ -268,7 +309,7 @@
         </div>
 
         <!-- ---------------------------------------------------- -->
-        <!-- 2. ODDS OR EVENS CONTENT (Hidden by default) -->
+        <!-- 2. ODDS OR EVENS CONTENT -->
         <!-- ---------------------------------------------------- -->
         <div id="odds-game" class="game-content" style="display:none;">
 
@@ -331,10 +372,33 @@
 
         </div>
         <!-- ---------------------------------------------------- -->
+        
+        <!-- 3. MUSIC LIST CONTENT (NEW) -->
+        <!-- ---------------------------------------------------- -->
+        <div id="music-game" class="game-content" style="display:none;">
+            <h2 style="margin-bottom: 20px;">Roblox Music IDs (Click to Copy ID)</h2>
+            
+            <div class="music-list-scroll">
+                <ul>
+                    {% for song in roblox_music_list %}
+                        <li class="music-item" onclick="copyMusicID('{{ song.id | e }}', '{{ song.name | e }}')">
+                            <span class="music-item-name">{{ song.name }}</span>
+                            <span class="music-item-id">{{ song.id }}</span>
+                            <span class="music-copy-icon">📋</span>
+                        </li>
+                    {% else %}
+                        <li style="padding: 10px; color: #ff6b6b;">No songs found. Please ensure the 'Roblox Song ID's.txt' file is correctly formatted (ID-Name).</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <p id="music-copy-status" style="margin-top: 20px; font-weight: bold; color: #aaa;">Ready to copy music ID.</p>
+        </div>
+        <!-- ---------------------------------------------------- -->
 
-        <!-- 3. Clipboard Buttons (Shared) -->
+
+        <!-- 4. Clipboard Buttons (Shared) -->
         <div class="messages">
-            <h2>Quick Invite Copier</h2>
+            <h2>Quick Invite Copier (Shared Messages)</h2>
             <div class="clipboard-buttons">
                 {% for key, message in messages.items() %}
                     {% set display_name = key %}
@@ -345,7 +409,7 @@
                         {% set message_content = loss_streak ~ ' losses in a row! Can\'t be much longer!' %}
                     {% endif %}
 
-                    <button onclick="copyToClipboard('{{ message_content | e }}', '{{ display_name }}')">
+                    <button onclick="copyToClipboard('{{ message_content | e }}', '{{ display_name }}', 'copy-status')">
                         Copy: {{ display_name }}
                     </button>
                 {% endfor %}
@@ -379,7 +443,7 @@
             // Show the selected game content
             document.getElementById(gameId + '-game').style.display = 'block';
             // Activate the corresponding button
-            document.getElementById(gameId + '-tab').classList.add('active'); // Use ID for reliable selection
+            document.getElementById(gameId + '-tab').classList.add('active'); 
 
             // Re-render chart for the currently active tab to prevent rendering issues
             if (gameId === 'wheel' && window.wheelChartInstance) {
@@ -417,6 +481,7 @@
 
                 // Update UI
                 document.getElementById('oe-lose-btn').textContent = `Player LOSES (+ $${formatCurrency(netLoss)})`;
+                // Note: The Odd/Even game doesn't need a winner name input, just the button for a win
                 document.getElementById('oe-win-btn').textContent = `Player WINS (- $${formatCurrency(netWin)})`;
 
                 // Update hidden input fields for form submission
@@ -470,11 +535,11 @@
             return new Chart(ctx, config);
         }
         
-        // --- CLIPBOARD LOGIC ---
-        function copyToClipboard(text, key) {
-            // Clipboard logic remains the same
-            text = text.replace(/&quot;/g, '"').replace(/&#39;/g, "'"); 
-            const statusElement = document.getElementById('copy-status');
+        // --- CLIPBOARD LOGIC (Updated to accept status element ID) ---
+        function copyToClipboard(text, key, statusElementId) {
+            // Unescape HTML entities
+            text = text.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'); 
+            const statusElement = document.getElementById(statusElementId);
             const textarea = document.createElement('textarea');
             textarea.value = text;
             textarea.style.position = 'fixed'; 
@@ -483,9 +548,10 @@
             textarea.select();
             
             try {
+                // Using document.execCommand('copy') as navigator.clipboard may not work in iframes
                 document.execCommand('copy');
                 statusElement.textContent = `'${key}' Copied!`;
-                statusElement.style.color = 'green';
+                statusElement.style.color = 'lightgreen';
             } catch (err) {
                 console.error('Copy method failed: ', err);
                 statusElement.textContent = 'ERROR: Copy failed.';
@@ -493,11 +559,18 @@
             } finally {
                 document.body.removeChild(textarea);
                 setTimeout(() => {
-                    statusElement.textContent = 'Ready to copy.';
-                    statusElement.style.color = 'gray';
+                    statusElement.textContent = statusElementId === 'music-copy-status' ? 'Ready to copy music ID.' : 'Ready to copy.';
+                    statusElement.style.color = '#aaa';
                 }, 1500);
             }
         }
+        
+        // --- NEW MUSIC ID COPY FUNCTION ---
+        function copyMusicID(id, name) {
+            // The ID is the value to copy, the name is just for the success message
+            copyToClipboard(id, name + ' ID', 'music-copy-status');
+        }
+
         
         // --- INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', function() {
@@ -506,14 +579,14 @@
             updateButtonLabels('odds'); 
             
             // 2. Initialize Charts
+            // Use JSON.parse and tojson|safe to correctly handle list serialization from Python/Jinja
             const swProfitHistory = JSON.parse('{{ profit_history | tojson | safe }}');
             const oeProfitHistory = JSON.parse('{{ oe_profit_history | tojson | safe }}');
             
             window.wheelChartInstance = initChart('wheelChart', swProfitHistory, 'Net Profit (Wheel)', '#3498db');
             window.oeChartInstance = initChart('oeChart', oeProfitHistory, 'Net Profit (Odds/Evens)', '#e67e22'); // Orange for new game
             
-            // 3. Set Initial Tab (CRITICAL FIX HERE)
-            // Get the tab state passed from Flask or default to 'wheel'
+            // 3. Set Initial Tab
             const initialTab = '{{ active_tab }}'; 
             showGame(initialTab); 
 
