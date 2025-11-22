@@ -3,15 +3,19 @@
 from flask import Flask, render_template, request, redirect, url_for
 import json
 import os
-import re # Import the regex module for better parsing
+import re 
 
 # --- Configuration & Global Data ---
 app = Flask(__name__)
 
 # FINAL DATA FIX: Use the persistent disk path
 DATA_FILE = "/var/data/casino_data.json" 
-# Path for the uploaded music file
-MUSIC_ID_FILE = "Roblox Song ID's.txt" 
+
+# CRITICAL FIX: Use the absolute path to the project root to reliably find the uploaded file.
+# The music file should be located in the same directory as this script.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MUSIC_ID_FILE = os.path.join(BASE_DIR, "Roblox Song ID's.txt") 
+
 
 # --- Game Parameters (Spinning Wheel) ---
 TOTAL_PAYOUT_MULTIPLIER = 9 # Payout is 9x the bet amount 
@@ -83,8 +87,10 @@ def parse_roblox_music_file():
     global roblox_music_list
     roblox_music_list = []
     
+    # Use the correctly configured absolute path
     if not os.path.exists(MUSIC_ID_FILE):
-        print(f"Music ID file not found at: {MUSIC_ID_FILE}")
+        # Print the path it is looking for to the console
+        print(f"Music ID file not found at configured path: {MUSIC_ID_FILE}")
         return
 
     try:
@@ -96,7 +102,6 @@ def parse_roblox_music_file():
 
                 # 1. Attempt to parse ID-Name (Robustly handle mixed separators/spaces)
                 # Looks for a numerical string (\d+) followed by a hyphen or space (\s*[-\s]\s*), followed by a name (.+)
-                # This should handle all variations like "123-Song" or "123 - Song" or "123 Song"
                 match = re.match(r'(\d+)\s*[-\s]\s*(.+)', line)
                 if match:
                     id_part = match.group(1).strip()
@@ -117,12 +122,7 @@ def parse_roblox_music_file():
                     })
                     continue
                 
-                # 3. Handle cases where the ID and name are separated by something else, or if the name contains non-word characters.
-                # Example: "135329216833864-No Hook" (already handled by regex)
-                # We need to make sure we don't accidentally ignore valid entries.
-                
-                # FINAL CHECK: If the line contains a number and a hyphen/space, but the primary regex failed, 
-                # we assume it's malformed or just a name (e.g., 'Back', 'Rave'). The primary regex is robust enough.
+                # 3. If it is just a name (like 'Back' or 'Rave'), it falls through and is ignored.
                 
     except Exception as e:
         print(f"An error occurred while reading the music file: {e}")
@@ -225,7 +225,7 @@ def index():
     load_data() 
     parse_roblox_music_file() # Load music IDs on every request
     
-    # CRITICAL FIX 1: Capture the active tab from the URL query string, default to 'wheel'
+    # Capture the active tab from the URL query string, default to 'wheel'
     active_tab = request.args.get('active_tab', 'wheel')
     
     # --- SPINNING WHEEL CALCULATIONS ---
@@ -252,7 +252,7 @@ def index():
         
     # Sort leaderboard for display
     sorted_leaderboard = sorted(leaderboard_data.items(), key=lambda item: item[1], reverse=True)
-    # CRITICAL CHANGE: Use .title() to capitalize the name for display purposes
+    # Use .title() to capitalize the name for display purposes
     formatted_leaderboard = [(name.title(), format_currency(winnings)) for name, winnings in sorted_leaderboard]
     
     # Data passed to the HTML template
@@ -275,20 +275,19 @@ def index():
         'oe_total_spins': oe_total_spins,
         'oe_win_loss_display': oe_win_loss_display,
         
-        # Music Context (NEW)
+        # Music Context
         'roblox_music_list': roblox_music_list,
         
         # General Context
         'messages': SAVED_MESSAGES,
         'bet_options': [i * 25000 for i in range(1, 11)], 
         'default_bet': DEFAULT_BET_AMOUNT,
-        # CRITICAL FIX 2: Pass the active tab back to the template
         'active_tab': active_tab 
     }
     
     return render_template('index.html', **context)
 
-# --- SPINNING WHEEL ROUTES (No change needed for redirects) ---
+# --- SPINNING WHEEL ROUTES ---
 @app.route('/lose', methods=['POST'])
 def player_loses_route():
     global net_profit, loss_streak, profit_history
@@ -334,7 +333,7 @@ def player_wins_route():
     
     return redirect(url_for('index'))
 
-# --- ODDS OR EVENS ROUTES (Redirects updated to include active_tab) ---
+# --- ODDS OR EVENS ROUTES ---
 @app.route('/odd_even_loses', methods=['POST'])
 def odd_even_loses_route():
     """Handles the Odd/Even Player LOSES button click."""
@@ -350,7 +349,7 @@ def odd_even_loses_route():
     oe_profit_history.append(oe_net_profit)
     save_data()
     
-    # CRITICAL FIX 3: Redirect back to index with the 'odds' tab active
+    # Redirect back to index with the 'odds' tab active
     return redirect(url_for('index', active_tab='odds'))
 
 @app.route('/odd_even_wins', methods=['POST'])
@@ -372,13 +371,11 @@ def odd_even_wins_route():
     oe_profit_history.append(oe_net_profit)
     save_data()
     
-    # CRITICAL FIX 4: Redirect back to index with the 'odds' tab active
+    # Redirect back to index with the 'odds' tab active
     return redirect(url_for('index', active_tab='odds'))
 
 
-# --- CRITICAL FIX: Add gunicorn_starter.py to enable proper deployment ---
-# This file tells gunicorn which application to run.
-# The app will run under gunicorn in the Canvas environment if a file named gunicorn_starter.py exists.
+# --- Deployment and Local Start ---
 @app.route('/health')
 def health_check():
     return "OK", 200
