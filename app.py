@@ -1,3 +1,5 @@
+# --- Python Flask Backend: app.py ---
+
 from flask import Flask, render_template, request, redirect, url_for
 import json
 import os
@@ -7,6 +9,8 @@ app = Flask(__name__)
 
 # FINAL DATA FIX: Use the persistent disk path
 DATA_FILE = "/var/data/casino_data.json" 
+# New path for the uploaded music file
+MUSIC_ID_FILE = "Roblox Song ID's.txt" 
 
 # --- Game Parameters (Spinning Wheel) ---
 TOTAL_PAYOUT_MULTIPLIER = 9 # Payout is 9x the bet amount 
@@ -26,6 +30,9 @@ total_wins = 0
 oe_net_profit = 0
 oe_profit_history = []
 oe_total_wins = 0
+
+# NEW Global variable for music list
+roblox_music_list = []
 
 SAVED_MESSAGES = {
     "Hot Wheel": "The wheel is hot! It's got to be ready any spin now!", 
@@ -64,6 +71,58 @@ def update_leaderboard(player_name, net_casino_cost):
     current_winnings += net_casino_cost
     leaderboard_data[player_name] = current_winnings
 
+def parse_roblox_music_file():
+    """Parses the uploaded TXT file into a list of dictionaries: 
+       [{'id': '12345', 'name': 'Song Name'}, ...]
+       Handles various formats in the file.
+    """
+    global roblox_music_list
+    roblox_music_list = []
+    
+    if not os.path.exists(MUSIC_ID_FILE):
+        print(f"Music ID file not found at: {MUSIC_ID_FILE}")
+        return
+
+    try:
+        with open(MUSIC_ID_FILE, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Check for the typical 'ID-Name' format
+                if '-' in line:
+                    try:
+                        parts = line.split('-', 1)
+                        # ID must be numerical and non-empty
+                        if parts[0].isdigit() and parts[1].strip():
+                            roblox_music_list.append({
+                                'id': parts[0].strip(),
+                                'name': parts[1].strip()
+                            })
+                            continue
+                    except Exception as e:
+                        # Log error for specific line but continue
+                        print(f"Skipping malformed ID-Name line: {line} ({e})")
+                        
+                # Check for lines that are just a name or a generic label (skip 'Back', 'Rave', etc.)
+                if not any(char.isdigit() for char in line):
+                    continue
+                    
+                # Check for lines that are just a number (ID only, assign 'Unknown Song' as name)
+                if line.isdigit():
+                    roblox_music_list.append({
+                        'id': line,
+                        'name': 'Unknown Song'
+                    })
+                    continue
+                    
+                # If still here, it might be a name-ID format or other edge case, but stick to ID-Name parsing for robustness
+                # and assume that any line containing a number but not following the ID-Name pattern is noise or a simple label (which are filtered above)
+
+    except Exception as e:
+        print(f"An error occurred while reading the music file: {e}")
+
 
 # --- Data Persistence Functions ---
 def load_data():
@@ -101,14 +160,11 @@ def load_data():
             lower_name = player.lower()
             normalized_leaderboard[lower_name] = normalized_leaderboard.get(lower_name, 0) + winnings
         
-        # Check if normalization resulted in any changes (fewer keys or mixed case removed)
         needs_save = len(leaderboard_data) != len(normalized_leaderboard) or any(name != name.lower() for name in leaderboard_data.keys())
 
-        # Update the global leaderboard
         leaderboard_data.clear()
         leaderboard_data.update(normalized_leaderboard)
 
-        # Save the cleaned data back to disk if changes were made
         if needs_save:
              print("Leaderboard names normalized (all lowercase for storage). Saving data.")
              save_data()
@@ -163,6 +219,7 @@ def save_data():
 def index():
     """Main page route - Loads data, formats numbers, and renders the HTML interface."""
     load_data() 
+    parse_roblox_music_file() # Load music IDs on every request
     
     # CRITICAL FIX 1: Capture the active tab from the URL query string, default to 'wheel'
     active_tab = request.args.get('active_tab', 'wheel')
@@ -213,6 +270,9 @@ def index():
         'oe_loss_percent': oe_loss_percent,
         'oe_total_spins': oe_total_spins,
         'oe_win_loss_display': oe_win_loss_display,
+        
+        # Music Context (NEW)
+        'roblox_music_list': roblox_music_list,
         
         # General Context
         'messages': SAVED_MESSAGES,
@@ -270,7 +330,7 @@ def player_wins_route():
     
     return redirect(url_for('index'))
 
-# --- NEW ODDS OR EVENS ROUTES (Redirects updated to include active_tab) ---
+# --- ODDS OR EVENS ROUTES (Redirects updated to include active_tab) ---
 @app.route('/odd_even_loses', methods=['POST'])
 def odd_even_loses_route():
     """Handles the Odd/Even Player LOSES button click."""
@@ -313,4 +373,6 @@ def odd_even_wins_route():
 
 
 if __name__ == '__main__':
+    load_data() # Load initial data on startup
+    parse_roblox_music_file() # Load music IDs on startup
     app.run(debug=True)
